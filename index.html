@@ -1,293 +1,53 @@
-
 <!DOCTYPE html>
 <html lang="de">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Bundesliga Tippspiel – Live-Scoring (robust)</title>
+<title>Bundesliga Tippspiel – Online Live-Scorer (hardened)</title>
+<meta name="description" content="Robuster Live-Scorer für Bundesliga-Tipps mit vielen CORS-Fallbacks und Debug-Konsole.">
 <style>
-  :root { --bg:#0c0d10; --card:#161821; --muted:#9aa3b2; --ok:#2ecc71; --bad:#e74c3c; --accent:#3da9fc; }
-  * { box-sizing: border-box; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
-  body { margin: 0; background: var(--bg); color: #e9eef5; }
-  header { padding: 18px 20px; border-bottom: 1px solid #1e2230; display:flex; gap:16px; align-items:baseline; flex-wrap: wrap; }
-  h1 { font-size: 1.25rem; margin: 0; }
-  .hint { color: var(--muted); font-size: .9rem; }
-  main { padding: 18px; max-width: 1100px; margin: 0 auto; }
-  .board { background: var(--card); border: 1px solid #1e2230; border-radius: 14px; padding: 14px; box-shadow: 0 6px 24px rgba(0,0,0,.25); }
-  table { width: 100%; border-collapse: collapse; font-size: 14px; }
-  thead th { text-align: left; color: #cbd5e1; font-weight: 600; border-bottom: 1px solid #1e2230; padding: 10px 8px; white-space: nowrap; position: sticky; top: 0; background: var(--card); z-index: 2; }
-  tbody td { padding: 8px; border-bottom: 1px dashed #232838; vertical-align: middle; }
-  tbody tr:hover { background: rgba(255,255,255,.02); }
-  .rank { font-variant-numeric: tabular-nums; width: 36px; }
-  .club { display:flex; align-items:center; gap:10px; }
-  .club img { width: 22px; height: 22px; border-radius: 50%; background:#222; }
-  .chip { display:inline-block; padding: 2px 8px; border-radius: 999px; font-variant-numeric: tabular-nums; }
-  .good { background: rgba(46, 204, 113, .15); color: var(--ok); }
-  .bad  { background: rgba(231, 76, 60, .15);  color: var(--bad); }
-  .sum { font-weight:700; }
-  footer { color: var(--muted); padding: 8px 20px 20px; font-size: .85rem; }
-  .totals { display:flex; gap:14px; margin: 12px 0 18px; }
-  .totals > div { background: var(--card); border:1px solid #1e2230; border-radius:12px; padding:10px 12px; }
-  .kpi { font-size: 1.0rem; color: #fff; }
-  .small { color: var(--muted); font-size: .85rem; }
-  .exact { border:1px solid var(--ok); }
-  .controls { display:flex; align-items:center; gap:12px; margin-bottom:10px; color:#cbd5e1; flex-wrap: wrap;}
-  select, button, textarea { background:#0f1117; color:#e9eef5; border:1px solid #1e2230; padding:8px 10px; border-radius:10px; }
+  :root { --bg:#0b0f14; --card:#121826; --muted:#94a3b8; --ok:#16a34a; --bad:#ef4444; --accent:#38bdf8; }
+  * { box-sizing:border-box; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+  body { margin:0; background:var(--bg); color:#e5e7eb; }
+  header { padding:18px 20px; border-bottom:1px solid #1f2937; display:flex; flex-wrap:wrap; gap:12px; align-items:baseline;}
+  h1 { margin:0; font-size:1.2rem; }
+  .muted { color:var(--muted); }
+  main { padding:18px; max-width:1100px; margin:0 auto; }
+  .controls { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:12px; }
+  select, button { background:#0f172a; color:#e5e7eb; border:1px solid #1f2937; padding:8px 10px; border-radius:10px; }
   button { cursor:pointer; }
-  textarea { width:100%; min-height:120px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .board { background:var(--card); border:1px solid #1f2937; border-radius:14px; padding:14px; box-shadow:0 6px 24px rgba(0,0,0,.25); }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  thead th { text-align:left; color:#cbd5e1; font-weight:600; border-bottom:1px solid #1f2937; padding:10px 8px; white-space:nowrap; position:sticky; top:0; background:var(--card); z-index:2; }
+  tbody td { padding:8px; border-bottom:1px dashed #243244; vertical-align:middle; }
+  tbody tr:hover { background: rgba(255,255,255,.03); }
+  .rank { width:36px; font-variant-numeric: tabular-nums; }
+  .club { display:flex; align-items:center; gap:10px; }
+  .club img { width:22px; height:22px; border-radius:50%; background:#111827; }
+  .chip { display:inline-block; padding:2px 8px; border-radius:999px; font-variant-numeric:tabular-nums; }
+  .good { background:rgba(22,163,74,.15); color:var(--ok); }
+  .bad  { background:rgba(239,68,68,.15); color:var(--bad); }
+  .exact { border:1px solid var(--ok); }
+  .sum { font-weight:700; }
+  .kpis { display:flex; gap:12px; margin:12px 0 18px; }
+  .kpis > div { background:var(--card); border:1px solid #1f2937; border-radius:12px; padding:10px 12px; }
+  .kpiLabel { color:var(--muted); font-size:.85rem; }
+  .kpiValue { font-size:1.05rem; color:#fff; }
+  .msg { margin:6px 0 12px; }
   a { color: var(--accent); }
-  .warn { color:#fda4af; }
+  footer { color:var(--muted); padding:8px 20px 20px; font-size:.85rem; }
+  details { margin-top: 12px; }
+  pre { background:#0f172a; border:1px solid #1f2937; border-radius:10px; padding:10px; white-space:pre-wrap; overflow:auto; }
 </style>
 </head>
 <body>
   <header>
-    <h1>Bundesliga Tippspiel – Live-Scoring</h1>
-    <div class="hint">Regel: |Tipp − Live-Platz|. Summe = Minuspunkte. Weniger ist besser. Einsatz: 1× Polvo-Essen.</div>
+    <h1>Bundesliga Tippspiel – Online Live-Scorer</h1>
+    <div class="muted">Regel: |Tipp − Live-Platz|, Summe = Minuspunkte (weniger ist besser). Einsatz: 1× Polvo-Essen.</div>
   </header>
   <main>
     <div class="controls">
-      <div>Sortieren nach:</div>
-      <select id="sorter">
-        <option value="live">Live-Platz</option>
-        <option value="thomas">Thomas’ Tipp</option>
-        <option value="dave">Daves Tipp</option>
-        <option value="diff_thomas">Differenz Thomas</option>
-        <option value="diff_dave">Differenz Dave</option>
-        <option value="name">Teamname</option>
-      </select>
-      <button id="reload">Live neu laden</button>
-      <button id="loadDemo">Demo laden</button>
-    </div>
-
-    <div id="msg" class="hint"></div>
-
-    <div class="board">
-      <table id="table">
-        <thead>
-          <tr>
-            <th class="rank">#</th>
-            <th>Team</th>
-            <th>Live</th>
-            <th>Thomas</th>
-            <th>Δ Thomas</th>
-            <th>Dave</th>
-            <th>Δ Dave</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-        <tfoot>
-          <tr class="sum">
-            <td></td><td>Summe Minuspunkte</td>
-            <td></td>
-            <td id="sum_thomas"></td><td></td>
-            <td id="sum_dave"></td><td></td>
-          </tr>
-        </tfoot>
-      </table>
-    </div>
-
-    <details>
-      <summary>Manuell: Live-Tabelle als JSON einfügen (OpenLigaDB getbltable/bl1)</summary>
-      <p class="hint">Falls Live nicht lädt, kannst du hier die OpenLigaDB-Antwort (JSON) einfügen und auf „Anwenden“ klicken.</p>
-      <textarea id="manual"></textarea>
-      <button id="apply">Anwenden</button>
-    </details>
-
-    <div class="totals">
-      <div><div class="small">Thomas</div><div class="kpi" id="kpi_thomas">–</div></div>
-      <div><div class="small">Dave</div><div class="kpi" id="kpi_dave">–</div></div>
-      <div><div class="small">Führend</div><div class="kpi" id="leader">–</div></div>
-    </div>
-  </main>
-
-  <footer>
-    <div class="small">Datenquellen-Versuch: OpenLigaDB (mehrere Endpunkte + Fallback). Wenn alles blockt, Demo oder „Manuell“ nutzen.</div>
-  </footer>
-
-<script>
-// OFFIZIELLE Klubnamen
-const teamsOfficial = [
-  "FC Bayern München","Borussia Dortmund","RB Leipzig","VfB Stuttgart",
-  "Bayer 04 Leverkusen","Eintracht Frankfurt","1. FSV Mainz 05","1. FC Köln",
-  "FC Augsburg","SV Werder Bremen","SC Freiburg","Borussia Mönchengladbach",
-  "TSG 1899 Hoffenheim","VfL Wolfsburg","Hamburger SV","1. FC Union Berlin",
-  "FC St. Pauli","1. FC Heidenheim 1846"
-];
-
-const picksThomas = {
-  "FC Bayern München": 1, "Borussia Dortmund": 2, "RB Leipzig": 3, "VfB Stuttgart": 4,
-  "Bayer 04 Leverkusen": 5, "Eintracht Frankfurt": 6, "1. FSV Mainz 05": 7, "1. FC Köln": 8,
-  "FC Augsburg": 9, "SV Werder Bremen": 10, "SC Freiburg": 11, "Borussia Mönchengladbach": 12,
-  "TSG 1899 Hoffenheim": 13, "VfL Wolfsburg": 14, "Hamburger SV": 15, "1. FC Union Berlin": 16,
-  "FC St. Pauli": 17, "1. FC Heidenheim 1846": 18
-};
-
-const picksDave = {
-  "FC Bayern München": 1, "Eintracht Frankfurt": 2, "Borussia Dortmund": 3, "VfB Stuttgart": 4,
-  "Bayer 04 Leverkusen": 5, "RB Leipzig": 6, "1. FC Köln": 7, "1. FSV Mainz 05": 8,
-  "SC Freiburg": 9, "Hamburger SV": 10, "TSG 1899 Hoffenheim": 11, "Borussia Mönchengladbach": 12,
-  "FC Augsburg": 13, "1. FC Heidenheim 1846": 14, "VfL Wolfsburg": 15, "FC St. Pauli": 16,
-  "1. FC Union Berlin": 17, "SV Werder Bremen": 18
-};
-
-const apiCandidates = [
-  "https://api.openligadb.de/getbltable/bl1",
-  "https://www.openligadb.de/api/getbltable/bl1",
-  "https://api.openligadb.de/getbltable/bl1/2025",
-  "https://www.openligadb.de/api/getbltable/bl1/2025"
-];
-
-function info(msg, cls="hint") {
-  const el = document.getElementById("msg");
-  el.className = cls;
-  el.textContent = msg;
-}
-
-function asRowsFromLive(data) {
-  // Expect array of objects with TeamName, TeamIconUrl, Points, Matches, GoalDiff
-  return data.map((row, idx) => ({
-    pos: idx + 1,
-    team: row.TeamName,
-    logo: row.TeamIconUrl,
-    points: row.Points,
-    matches: row.Matches,
-    goalDiff: row.GoalDiff
-  }));
-}
-
-async function fetchJsonWithFallback(urls) {
-  let lastErr = null;
-  for (const u of urls) {
-    try {
-      const res = await fetch(u, { cache: "no-store" });
-      if (!res.ok) throw new Error("HTTP " + res.status);
-      const data = await res.json();
-      return data;
-    } catch (err) {
-      lastErr = err;
-    }
-  }
-  throw lastErr || new Error("Keine Daten erreichbar.");
-}
-
-async function loadLive() {
-  info("Versuche Live-Daten zu laden …");
-  try {
-    const data = await fetchJsonWithFallback(apiCandidates);
-    const rows = asRowsFromLive(data);
-    render(rows);
-    info("Live-Daten geladen.", "hint");
-  } catch (err) {
-    info("Live-Daten nicht erreichbar. Du kannst „Demo laden“ klicken oder unten JSON manuell einfügen.", "warn");
-    // Render at least the team names from picks so the table isn't empty
-    const rows = teamsOfficial.map((t, i) => ({ pos: null, team: t, logo: "", points: null, matches: null, goalDiff: null }));
-    render(rows);
-  }
-}
-
-function render(rows) {
-  const tbody = document.querySelector("#table tbody");
-  tbody.innerHTML = "";
-
-  let sumT = 0, sumD = 0;
-
-  // If live pos is null, we cannot score; show dashes and keep sums empty
-  let canScore = rows.every(r => typeof r.pos === "number");
-
-  // Build a list that covers all official teams, merging live if present
-  const mapLive = new Map(rows.map(r => [r.team, r]));
-  const list = teamsOfficial.map((team) => {
-    const r = mapLive.get(team) || { pos: null, team, logo: "" };
-    const th = picksThomas[team] ?? null;
-    const dv = picksDave[team] ?? null;
-    const diffT = (canScore && th !== null && typeof r.pos === "number") ? Math.abs(th - r.pos) : null;
-    const diffD = (canScore && dv !== null && typeof r.pos === "number") ? Math.abs(dv - r.pos) : null;
-    if (diffT !== null) sumT += diffT;
-    if (diffD !== null) sumD += diffD;
-    return {
-      live: r.pos,
-      team,
-      logo: r.logo,
-      thomas: th,
-      dave: dv,
-      diff_thomas: diffT,
-      diff_dave: diffD
-    };
-  });
-
-  function chip(value) {
-    if (value === null || value === undefined) return "<span class='chip bad'>–</span>";
-    const cls = value === 0 ? "chip good exact" : "chip " + (value <= 2 ? "good" : "bad");
-    return `<span class="${cls}">${value}</span>`;
-  }
-
-  function draw(listToDraw) {
-    tbody.innerHTML = "";
-    listToDraw.forEach((r, i) => {
-      const rankDisplay = (typeof r.live === "number") ? r.live : "–";
-      tbody.insertAdjacentHTML("beforeend", `
-        <tr>
-          <td class="rank">${rankDisplay}</td>
-          <td class="club"><img src="${r.logo || ""}" alt="" /> ${r.team}</td>
-          <td>${rankDisplay}</td>
-          <td>${r.thomas ?? "–"}</td>
-          <td>${chip(r.diff_thomas)}</td>
-          <td>${r.dave ?? "–"}</td>
-          <td>${chip(r.diff_dave)}</td>
-        </tr>
-      `);
-    });
-    document.getElementById("sum_thomas").textContent = canScore ? sumT : "–";
-    document.getElementById("sum_dave").textContent = canScore ? sumD : "–";
-    document.getElementById("kpi_thomas").textContent = canScore ? sumT : "–";
-    document.getElementById("kpi_dave").textContent = canScore ? sumD : "–";
-    document.getElementById("leader").textContent = canScore ? ((sumT < sumD) ? "Thomas führt" : (sumD < sumT) ? "Dave führt" : "Gleichstand") : "Live nötig";
-  }
-
-  function applySort() {
-    const val = document.getElementById("sorter").value;
-    const copy = list.slice();
-    copy.sort((a,b) => {
-      if (val === "name") return a.team.localeCompare(b.team);
-      return (a[val] ?? 999) - (b[val] ?? 999);
-    });
-    draw(copy);
-  }
-
-  document.getElementById("sorter").onchange = applySort;
-  applySort();
-}
-
-document.getElementById("reload").onclick = loadLive;
-
-document.getElementById("loadDemo").onclick = () => {
-  // Simple demo standings just to visualize and test scoring
-  const demo = [
-    "Bayer 04 Leverkusen","FC Bayern München","VfB Stuttgart","RB Leipzig","Borussia Dortmund",
-    "Eintracht Frankfurt","SC Freiburg","TSG 1899 Hoffenheim","VfL Wolfsburg","FC Augsburg",
-    "SV Werder Bremen","Borussia Mönchengladbach","1. FSV Mainz 05","1. FC Heidenheim 1846",
-    "1. FC Köln","Hamburger SV","1. FC Union Berlin","FC St. Pauli"
-  ].map((team, idx) => ({ TeamName: team, TeamIconUrl: "", Points: 0, Matches: 0, GoalDiff: 0 }));
-  // Convert to rows with positions
-  const rows = demo.map((r, i) => ({ pos: i+1, team: r.TeamName, logo: r.TeamIconUrl, points: r.Points, matches: r.Matches, goalDiff: r.GoalDiff }));
-  render(rows);
-  info("Demo geladen – Scoring aktiv.", "hint");
-};
-
-document.getElementById("apply").onclick = () => {
-  try {
-    const txt = document.getElementById("manual").value.trim();
-    const json = JSON.parse(txt);
-    const rows = asRowsFromLive(json);
-    render(rows);
-    info("Manuelle Live-Tabelle angewendet.", "hint");
-  } catch (e) {
-    info("JSON konnte nicht gelesen werden: " + e.message, "warn");
-  }
-};
-
-// Initial: try to load live, but render team list even if it fails
-loadLive();
-</script>
-</body>
-</html>
+      <label>Saison:
+        <select id="season">
+          <option value="2025" selected>2025</option>
+          <option value="2024">2024</option>
