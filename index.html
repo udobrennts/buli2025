@@ -277,8 +277,9 @@ async function load(){
     const league = "bl1";
     const urls = urlsFor(league, season);
     const data = await fetchWithFallback(urls);        // array mit {teamName, teamIconUrl, ...}
-    const result = compute(data);
-    render(result);
+    const result = compute(live, { exactByName, byShort, byNorm });
+render(result);
+
     msg("Live-Daten geladen.");
   }catch(e){
     msg("Konnte Live-Daten nicht laden – siehe Debug.", "muted");
