@@ -217,7 +217,13 @@ function compute(list){
   let sumT=0, sumD=0;
   const rows = teamsOfficial.map((team)=>{
     const idx = list.findIndex(r => r.teamName === team);
-    const live = idx>=0 ? (idx+1) : null;
+    // data ist das Array aus deinem Worker – Keys: teamName, shortName, teamIconUrl, ...
+const live = Array.isArray(data) ? data : [];
+// Indexe aufbauen
+const exactByName = new Map(live.map((r,i)=>[r.teamName, i]));         // exakte API-Namen
+const byShort     = new Map(live.map((r,i)=>[(r.shortName||"").toLowerCase(), i])); // ShortName
+const byNorm      = new Map(live.map((r,i)=>[norm(r.teamName), i]));   // normalisierte Namen
+
     const th = picksThomas[team] ?? null;
     const dv = picksDave[team] ?? null;
     const dT = (live!=null && th!=null) ? Math.abs(th-live) : null;
