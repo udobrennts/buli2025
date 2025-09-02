@@ -117,6 +117,8 @@ const teamsOfficial = [
 
 const picksThomas = {"FC Bayern München":1,"Borussia Dortmund":2,"RB Leipzig":3,"VfB Stuttgart":4,"Bayer 04 Leverkusen":5,"Eintracht Frankfurt":6,"1. FSV Mainz 05":7,"1. FC Köln":8,"FC Augsburg":9,"SV Werder Bremen":10,"SC Freiburg":11,"Borussia Mönchengladbach":12,"TSG 1899 Hoffenheim":13,"VfL Wolfsburg":14,"Hamburger SV":15,"1. FC Union Berlin":16,"FC St. Pauli":17,"1. FC Heidenheim 1846":18};
 const picksDave   = {"FC Bayern München":1,"Eintracht Frankfurt":2,"Borussia Dortmund":3,"VfB Stuttgart":4,"Bayer 04 Leverkusen":5,"RB Leipzig":6,"1. FC Köln":7,"1. FSV Mainz 05":8,"SC Freiburg":9,"Hamburger SV":10,"TSG 1899 Hoffenheim":11,"Borussia Mönchengladbach":12,"FC Augsburg":13,"1. FC Heidenheim 1846":14,"VfL Wolfsburg":15,"FC St. Pauli":16,"1. FC Union Berlin":17,"SV Werder Bremen":18};
+// Eigener CORS-Proxy (Cloudflare Worker):
+const WORKER = "https://udobrennts.davidwstrassbuger.workers.dev";
 
 function debug(line) {
   const box = document.getElementById("debug");
@@ -134,28 +136,37 @@ function msg(text, cls="muted") {
 function urlsFor(league, season) {
   const seasons = [];
   if (season !== undefined) seasons.push(season);
-  seasons.push("2025","2024",""); // try selected, then 2025, 2024, then current
+  seasons.push("2025","2024","");            // Kaskade: Auswahl → 2025 → 2024 → aktuell
   const uniq = [...new Set(seasons)];
-  const bases = ["https://api.openligadb.de", "https://www.openligadb.de/api"];
+
+  const bases = [
+    // 1) Dein Worker zuerst (CORS sicher)
+    (s) => `${WORKER}/getbltable/${league}${s ? "/" + s : ""}`,
+
+    // 2) Direkte Quellen (nur falls Worker nicht erreichbar ist)
+    (s) => `https://api.openligadb.de/getbltable/${league}${s ? "/" + s : ""}`,
+    (s) => `https://www.openligadb.de/api/getbltable/${league}${s ? "/" + s : ""}`,
+  ];
+
   const urls = [];
   for (const s of uniq) {
-    const path = s ? `/getbltable/${league}/${s}` : `/getbltable/${league}`;
-    for (const b of bases) {
-      const direct = `${b}${path}`;
+    for (const make of bases) {
+      const direct = make(s);
       urls.push(direct);
-      // AllOrigins raw + get
-      const enc = encodeURIComponent(direct);
-      urls.push(`https://api.allorigins.win/raw?url=${enc}`);
-      urls.push(`https://api.allorigins.win/get?url=${enc}`); // has {contents: "..."}
-      // isomorphic-git proxy
-      urls.push(`https://cors.isomorphic-git.org/${direct}`);
-      // r.jina.ai (http + https)
-      urls.push(`https://r.jina.ai/http://${b.replace("https://","")}${path}`);
-      urls.push(`https://r.jina.ai/${direct}`);
+
+      // Zusatz-Fallbacks nur für die DIREKT-Quellen (Worker braucht das nicht)
+      if (!direct.startsWith(WORKER)) {
+        const enc = encodeURIComponent(direct);
+        urls.push(`https://api.allorigins.win/raw?url=${enc}`);
+        urls.push(`https://api.allorigins.win/get?url=${enc}`);
+        urls.push(`https://cors.isomorphic-git.org/${direct}`);
+        urls.push(`https://r.jina.ai/${direct}`);
+      }
     }
   }
   return urls;
 }
+
 
 async function fetchCandidate(u) {
   try {
