@@ -211,30 +211,63 @@ async function fetchWithFallback(urls){
   throw last || new Error("Keine Quelle lieferte Daten.");
 }
 
-// Mapping + Rendering
-function compute(list){
-  // list: [{teamName, teamIconUrl, ...}] – Reihenfolge = Rang
+function compute(liveList, idx){
+  const { exactByName, byShort, byNorm } = idx;
   let sumT=0, sumD=0;
-  const rows = teamsOfficial.map((team)=>{
-    const idx = list.findIndex(r => r.teamName === team);
-    // data ist das Array aus deinem Worker – Keys: teamName, shortName, teamIconUrl, ...
-const live = Array.isArray(data) ? data : [];
-// Indexe aufbauen
-const exactByName = new Map(live.map((r,i)=>[r.teamName, i]));         // exakte API-Namen
-const byShort     = new Map(live.map((r,i)=>[(r.shortName||"").toLowerCase(), i])); // ShortName
-const byNorm      = new Map(live.map((r,i)=>[norm(r.teamName), i]));   // normalisierte Namen
+
+  // Hilfs-Finder: versucht mehrere Strategien
+  function findLiveIndex(officialName){
+    // 1) exakter Treffer (API-Name == offizieller Name)
+    if (exactByName.has(officialName)) return exactByName.get(officialName);
+
+    // 2) ShortName-Treffer (z.B. "HSV", "BVB", "Köln")
+    const offShort = officialName.split(" ").pop().toLowerCase(); // grobe Heuristik; reicht oft nicht
+    if (byShort.has(offShort)) return byShort.get(offShort);
+
+    // 3) Normalisiert (Umlaute, Präfixe entfernt)
+    const offNorm = norm(officialName);
+    if (byNorm.has(offNorm)) return byNorm.get(offNorm);
+
+    // 4) Synonyme (nah am Original, aber flexibler)
+    if (synonymList[offNorm]){
+      for (const alt of synonymList[offNorm]){
+        const cand = norm(alt);
+        if (byNorm.has(cand)) return byNorm.get(cand);
+      }
+    }
+
+    // 5) Leichtes Fuzzy: kleinster Levenshtein-Abstand unter Schwelle
+    let bestIdx = -1, bestDist = Infinity;
+    for (let i=0;i<liveList.length;i++){
+      const n = norm(liveList[i].teamName);
+      const d = lev(offNorm, n);
+      if (d < bestDist){ bestDist = d; bestIdx = i; }
+    }
+    // Schwelle konservativ halten, damit wir "nahe am Original" bleiben
+    if (bestDist <= 3) return bestIdx;
+
+    // Kein Treffer
+    return -1;
+  }
+
+  const rows = teamsOfficial.map(team=>{
+    const idxLive = findLiveIndex(team);
+    const livePos = idxLive>=0 ? (idxLive+1) : null;
 
     const th = picksThomas[team] ?? null;
     const dv = picksDave[team] ?? null;
-    const dT = (live!=null && th!=null) ? Math.abs(th-live) : null;
-    const dD = (live!=null && dv!=null) ? Math.abs(dv-live) : null;
+    const dT = (livePos!=null && th!=null) ? Math.abs(th - livePos) : null;
+    const dD = (livePos!=null && dv!=null) ? Math.abs(dv - livePos) : null;
     if (dT!=null) sumT += dT;
     if (dD!=null) sumD += dD;
-    const logo = idx>=0 ? (list[idx].teamIconUrl || "") : "";
-    return { team, live, thomas: th, dave: dv, diff_thomas: dT, diff_dave: dD, logo };
+
+    const logo = idxLive>=0 ? (liveList[idxLive].teamIconUrl || "") : "";
+    return { team, live: livePos, thomas: th, dave: dv, diff_thomas: dT, diff_dave: dD, logo };
   });
+
   return { rows, sumT, sumD, canScore: rows.every(r => typeof r.live === "number") };
 }
+
 
 function render(result){
   const { rows, sumT, sumD, canScore } = result;
