@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Buli Live-Scorer (nur Worker)</title>
+<style>
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin:0; background:#0b0f14; color:#e5e7eb; }
+  header { padding:16px 18px; border-bottom:1px solid #1f2937; }
+  main { max-width:980px; margin:0 auto; padding:16px; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th,td { padding:8px; border-bottom:1px dashed #243244; }
+  th { text-align:left; color:#cbd5e1; border-bottom:1px solid #1f2937; }
+  .rank { width:36px; font-variant-numeric: tabular-nums; }
+  .chip { padding:2px 8px; border-radius:999px; display:inline-block; font-variant-numeric:tabular-nums; }
+  .good { background:rgba(22,163,74,.15); color:#16a34a; }
+  .bad  { background:rgba(239,68,68,.15); color:#ef4444; }
+  .kpis { display:flex; gap:12px; margin-top:12px; }
+  .card { background:#121826; border:1px solid #1f2937; border-radius:12px; padding:10px 12px; }
+  select,button { background:#0f172a; color:#e5e7eb; border:1px solid #1f2937; padding:8px 10px; border-radius:10px; }
+  .muted { color:#94a3b8; }
+  pre { background:#0f172a; border:1px solid #1f2937; border-radius:10px; padding:10px; white-space:pre-wrap; overflow:auto; }
+</style>
+</head>
+<body>
+<header>
+  <div><strong>Buli Live-Scorer</strong> – Regel: |Tipp − Live|, Summe = Minuspunkte. Einsatz: 1× Polvo.</div>
+</header>
+<main>
+  <div style="display:flex; gap:10px; align-items:center; margin-bottom:12px;">
+    <label>Saison:
+      <select id="season">
+        <option value="2025" selected>2025</option>
+        <option value="2024">2024</option>
+      </select>
+    </label>
+    <button id="reload">Neu laden</button>
+    <span id="msg" class="muted"></span>
+  </div>
+
+  <table>
+    <thead><tr>
+      <th class="rank">#</th><th>Team</th>
+      <th>Live</th><th>Thomas</th><th>Δ Thomas</th><th>Dave</th><th>Δ Dave</th>
+    </tr></thead>
+    <tbody id="tbody"></tbody>
+    <tfoot><tr><td></td><td>Summe</td><td></td><td id="sumT"></td><td></td><td id="sumD"></td><td></td></tr></tfoot>
+  </table>
+
+  <div class="kpis">
+    <div class="card">Thomas: <span id="kpiT">–</span></div>
+    <div class="card">Dave: <span id="kpiD">–</span></div>
+    <div class="card">Führend: <span id="lead">–</span></div>
+  </div>
+
+  <h3>Debug</h3>
+  <pre id="debug" class="muted"></pre>
+</main>
+
+<script>
+const WORKER = "https://udobrennts.davidwstrassbuger.workers.dev"; // <— DEINE Worker-URL
+
+const teams = [
+  "FC Bayern München","Borussia Dortmund","RB Leipzig","VfB Stuttgart",
+  "Bayer 04 Leverkusen","Eintracht Frankfurt","1. FSV Mainz 05","1. FC Köln",
+  "FC Augsburg","SV Werder Bremen","SC Freiburg","Borussia Mönchengladbach",
+  "TSG 1899 Hoffenheim","VfL Wolfsburg","Hamburger SV","1. FC Union Berlin",
+  "FC St. Pauli","1. FC Heidenheim 1846"
+];
+
+const thomas = {"FC Bayern München":1,"Borussia Dortmund":2,"RB Leipzig":3,"VfB Stuttgart":4,"Bayer 04 Leverkusen":5,"Eintracht Frankfurt":6,"1. FSV Mainz 05":7,"1. FC Köln":8,"FC Augsburg":9,"SV Werder Bremen":10,"SC Freiburg":11,"Borussia Mönchengladbach":12,"TSG 1899 Hoffenheim":13,"VfL Wolfsburg":14,"Hamburger SV":15,"1. FC Union Berlin":16,"FC St. Pauli":17,"1. FC Heidenheim 1846":18};
+const dave   = {"FC Bayern München":1,"Eintracht Frankfurt":2,"Borussia Dortmund":3,"VfB Stuttgart":4,"Bayer 04 Leverkusen":5,"RB Leipzig":6,"1. FC Köln":7,"1. FSV Mainz 05":8,"SC Freiburg":9,"Hamburger SV":10,"TSG 1899 Hoffenheim":11,"Borussia Mönchengladbach":12,"FC Augsburg":13,"1. FC Heidenheim 1846":14,"VfL Wolfsburg":15,"FC St. Pauli":16,"1. FC Union Berlin":17,"SV Werder Bremen":18};
+
+function chip(n){ if(n==null) return '<span class="chip bad">–</span>'; return `<span class="chip ${n===0?'good':'bad'}">${n}</span>`; }
+function log(s){ document.getElementById('debug').textContent += s + "\\n"; }
+function msg(s){ document.getElementById('msg').textContent = s; }
+
+async function load(){
+  const season = document.getElementById('season').value;
+  const url = `${WORKER}/getbltable/bl1/${season}`;
+  log("TRY " + url);
+  msg("Lade Live …");
+  try{
+    const res = await fetch(url, { cache: "no-store" });
+    const txt = await res.text();
+    log("STATUS " + res.status);
+    if(!res.ok) throw new Error("HTTP " + res.status + "\\n" + txt.slice(0,400));
+    const data = JSON.parse(txt);
+    const rows = data.map((r,i)=>({pos:i+1, team:r.TeamName, logo:r.TeamIconUrl||""}));
+    render(rows);
+    msg("Live-Daten geladen.");
+  }catch(e){
+    log("FAIL " + (e&&e.message?e.message:e));
+    render([]); msg("Konnte Live-Daten nicht laden.");
+  }
+}
+
+function render(liveRows){
+  const byTeam = new Map(liveRows.map(r=>[r.team,r.pos]));
+  const tb = document.getElementById('tbody'); tb.innerHTML="";
+  let sumT=0,sumD=0;
+  teams.forEach(team=>{
+    const live = byTeam.get(team) ?? null;
+    const t = thomas[team] ?? null;
+    const d = dave[team] ?? null;
+    const dT = (live!=null&&t!=null)?Math.abs(t-live):null;
+    const dD = (live!=null&&d!=null)?Math.abs(d-live):null;
+    if(dT!=null) sumT+=dT; if(dD!=null) sumD+=dD;
+    tb.insertAdjacentHTML("beforeend",
+      `<tr><td class="rank">${live??"–"}</td><td>${team}</td><td>${live??"–"}</td>
+       <td>${t??"–"}</td><td>${chip(dT)}</td><td>${d??"–"}</td><td>${chip(dD)}</td></tr>`);
+  });
+  const can = liveRows.length===teams.length;
+  document.getElementById('sumT').textContent = can?sumT:"–";
+  document.getElementById('sumD').textContent = can?sumD:"–";
+  document.getElementById('kpiT').textContent = can?sumT:"–";
+  document.getElementById('kpiD').textContent = can?sumD:"–";
+  document.getElementById('lead').textContent = can ? (sumT<sumD?"Thomas führt":sumD<sumT?"Dave führt":"Gleichstand") : "Live nötig";
+}
+
+document.getElementById('reload').onclick = load;
+document.getElementById('season').onchange = load;
+load();
+</script>
+</body>
+</html>
