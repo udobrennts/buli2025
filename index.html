@@ -126,6 +126,58 @@ const picksDave   = {"FC Bayern München":1,"Eintracht Frankfurt":2,"Borussia Do
 function debug(line){ const box = document.getElementById("debug"); const el = document.createElement("pre"); el.textContent = line; box.appendChild(el); }
 function msg(text, cls="muted"){ const el = document.getElementById("msg"); el.className = "msg " + cls; el.textContent = text; }
 function chip(value){ if (value==null) return "<span class='chip bad'>–</span>"; const cls = value===0 ? "chip good exact" : "chip " + (value<=2 ? "good" : "bad"); return `<span class="${cls}">${value}</span>`; }
+// ==== Name-Normalisierung & Synonyme (für Matching) ====
+function deUmlaut(s){
+  return s
+    .replace(/ä/g,"ae").replace(/ö/g,"oe").replace(/ü/g,"ue").replace(/ß/g,"ss")
+    .replace(/Ä/g,"Ae").replace(/Ö/g,"Oe").replace(/Ü/g,"Ue");
+}
+function norm(s){
+  return deUmlaut(String(s || ""))
+    .toLowerCase()
+    .replace(/fc |tsg |vfl |vfb |1\.\s*fc|1\.\s*fsv|borussia|rasenballsport|sv |sc |bayer |rb /g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g," ");
+}
+
+// Häufige Kurz-/Alternativformen → nahe am Original
+const synonymList = {
+  "borussia moenchengladbach": ["moenchengladbach","gladbach","bmg"],
+  "rasenballsport leipzig": ["rb leipzig","leipzig","rbleipzig","r b leipzig"],
+  "bayer 04 leverkusen": ["bayer leverkusen","leverkusen","b04"],
+  "eintracht frankfurt": ["frankfurt","sge"],
+  "1 fc koeln": ["koeln","fc koeln","1. fc koln","koln"],
+  "1 fsv mainz 05": ["mainz","mainz 05","fsv mainz"],
+  "sv werder bremen": ["werder","bremen"],
+  "1 fc union berlin": ["union","union berlin"],
+  "fc st pauli": ["st pauli","fc st pauli","st. pauli"],
+  "1 fc heidenheim 1846": ["heidenheim","heidenheim 1846"],
+  "hamburger sv": ["hsv","hamburg"],
+  "vfl wolfsburg": ["wolfsburg"],
+  "vfb stuttgart": ["stuttgart"],
+  "sc freiburg": ["freiburg"],
+  "fc augsburg": ["augsburg"],
+  "tsg 1899 hoffenheim": ["hoffenheim","tsg hoffenheim"],
+  "borussia dortmund": ["dortmund","bvb"],
+  "fc bayern muenchen": ["bayern","bayern muenchen","fcb"]
+};
+
+// Leichtes Fuzzy (Levenshtein) – klein & ausreichend
+function lev(a,b){
+  a = a||""; b = b||"";
+  const m=a.length, n=b.length;
+  const dp = Array.from({length:m+1},(_,i)=>Array(n+1).fill(0));
+  for(let i=0;i<=m;i++) dp[i][0]=i;
+  for(let j=0;j<=n;j++) dp[0][j]=j;
+  for(let i=1;i<=m;i++){
+    for(let j=1;j<=n;j++){
+      const cost = a[i-1]===b[j-1]?0:1;
+      dp[i][j] = Math.min(dp[i-1][j]+1, dp[i][j-1]+1, dp[i-1][j-1]+cost);
+    }
+  }
+  return dp[m][n];
+}
 
 // URL-Kandidat: Worker immer zuerst, danach (nur falls nötig) Direkte
 function urlsFor(league, season){
