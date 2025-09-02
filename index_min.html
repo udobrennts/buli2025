@@ -76,4 +76,59 @@ function log(s){ document.getElementById('debug').textContent += s + "\n"; }
 function msg(s){ document.getElementById('msg').textContent = s; }
 
 async function load(){
-  const season = do
+  const season = document.getElementById('season').value;
+  const url = `${WORKER}/getbltable/bl1/${season}`;
+  log("TRY " + url);
+  msg("Lade Live …");
+  try{
+    const res = await fetch(url, { cache: "no-store" });
+    const txt = await res.text();
+    log("STATUS " + res.status);
+    if(!res.ok) throw new Error("HTTP " + res.status + "\n" + txt.slice(0,400));
+
+    // WICHTIG: Klein geschriebene Keys verwenden (teamName, teamIconUrl, ...)
+    const data = JSON.parse(txt);
+    const arr = Array.isArray(data) ? data : [];
+    const rows = arr.map((r,i)=>({
+      pos: i+1,
+      team: r.teamName,            // <-- teamName (klein)
+      logo: r.teamIconUrl || ""    // <-- teamIconUrl (klein)
+    }));
+
+    render(rows);
+    msg("Live-Daten geladen.");
+  }catch(e){
+    log("FAIL " + (e&&e.message?e.message:e));
+    render([]); msg("Konnte Live-Daten nicht laden.");
+  }
+}
+
+function render(liveRows){
+  const byTeam = new Map(liveRows.map(r=>[r.team,r.pos]));
+  const tb = document.getElementById('tbody'); tb.innerHTML="";
+  let sumT=0,sumD=0;
+  teams.forEach(team=>{
+    const live = byTeam.get(team) ?? null;
+    const t = thomas[team] ?? null;
+    const d = dave[team] ?? null;
+    const dT = (live!=null&&t!=null)?Math.abs(t-live):null;
+    const dD = (live!=null&&d!=null)?Math.abs(d-live):null;
+    if(dT!=null) sumT+=dT; if(dD!=null) sumD+=dD;
+    tb.insertAdjacentHTML("beforeend",
+      `<tr><td class="rank">${live??"–"}</td><td>${team}</td><td>${live??"–"}</td>
+       <td>${t??"–"}</td><td>${chip(dT)}</td><td>${d??"–"}</td><td>${chip(dD)}</td></tr>`);
+  });
+  const can = liveRows.length===teams.length;
+  document.getElementById('sumT').textContent = can?sumT:"–";
+  document.getElementById('sumD').textContent = can?sumD:"–";
+  document.getElementById('kpiT').textContent = can?sumT:"–";
+  document.getElementById('kpiD').textContent = can?sumD:"–";
+  document.getElementById('lead').textContent = can ? (sumT<sumD?"Thomas führt":sumD<sumT?"Dave führt":"Gleichstand") : "Live nötig";
+}
+
+document.getElementById('reload').onclick = load;
+document.getElementById('season').onchange = load;
+load();
+</script>
+</body>
+</html>
