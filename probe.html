@@ -1,0 +1,19 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Probe</title>
+<pre id="out">Lade …</pre>
+<script>
+const WORKER = "https://udobrennts.davidwstrassbuger.workers.dev"; // <— DEINE URL
+const URL = WORKER + "/getbltable/bl1/2025";
+
+(async () => {
+  const out = document.getElementById("out");
+  try {
+    const res = await fetch(URL, { cache: "no-store" });
+    const txt = await res.text();
+    out.textContent = "Status: " + res.status + "\nURL: " + URL + "\n\n" + txt.slice(0, 800);
+  } catch (e) {
+    out.textContent = "FETCH-ERROR bei\n" + URL + "\n\n" + (e && e.message ? e.message : e);
+  }
+})();
+</script>
