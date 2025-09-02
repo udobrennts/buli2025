@@ -58,7 +58,7 @@
 </main>
 
 <script>
-const WORKER = "https://udobrennts.davidwstrassbuger.workers.dev"; // <— DEINE Worker-URL
+const WORKER = "https://udobrennts.davidwstrassbuger.workers.dev"; // <— deine Worker-URL
 
 const teams = [
   "FC Bayern München","Borussia Dortmund","RB Leipzig","VfB Stuttgart",
@@ -72,66 +72,8 @@ const thomas = {"FC Bayern München":1,"Borussia Dortmund":2,"RB Leipzig":3,"VfB
 const dave   = {"FC Bayern München":1,"Eintracht Frankfurt":2,"Borussia Dortmund":3,"VfB Stuttgart":4,"Bayer 04 Leverkusen":5,"RB Leipzig":6,"1. FC Köln":7,"1. FSV Mainz 05":8,"SC Freiburg":9,"Hamburger SV":10,"TSG 1899 Hoffenheim":11,"Borussia Mönchengladbach":12,"FC Augsburg":13,"1. FC Heidenheim 1846":14,"VfL Wolfsburg":15,"FC St. Pauli":16,"1. FC Union Berlin":17,"SV Werder Bremen":18};
 
 function chip(n){ if(n==null) return '<span class="chip bad">–</span>'; return `<span class="chip ${n===0?'good':'bad'}">${n}</span>`; }
-function log(s){ document.getElementById('debug').textContent += s + "\\n"; }
+function log(s){ document.getElementById('debug').textContent += s + "\n"; }
 function msg(s){ document.getElementById('msg').textContent = s; }
 
 async function load(){
-  const season = document.getElementById('season').value;
-  const url = `${WORKER}/getbltable/bl1/${season}`;
-  log("TRY " + url);
-  msg("Lade Live …");
-  try{
-    const res = await fetch(url, { cache: "no-store" });
-    const txt = await res.text();
-    log("STATUS " + res.status);
-    if(!res.ok) throw new Error("HTTP " + res.status + "\\n" + txt.slice(0,400));
-
-    const data = JSON.parse(txt);
-
-    // Falls die API ein Array liefert, übernehmen; falls Objekt mit Feld, dort hinein.
-    const arr = Array.isArray(data) ? data : (data.Table || data.standings || []);
-
-    const rows = arr.map((r,i)=>({
-      pos: i+1,
-      team: r.TeamName,
-      logo: r.TeamIconUrl || ""
-    }));
-
-    render(rows);
-    msg("Live-Daten geladen.");
-  }catch(e){
-    log("FAIL " + (e&&e.message?e.message:e));
-    render([]); msg("Konnte Live-Daten nicht laden.");
-  }
-}
-
-
-function render(liveRows){
-  const byTeam = new Map(liveRows.map(r=>[r.team,r.pos]));
-  const tb = document.getElementById('tbody'); tb.innerHTML="";
-  let sumT=0,sumD=0;
-  teams.forEach(team=>{
-    const live = byTeam.get(team) ?? null;
-    const t = thomas[team] ?? null;
-    const d = dave[team] ?? null;
-    const dT = (live!=null&&t!=null)?Math.abs(t-live):null;
-    const dD = (live!=null&&d!=null)?Math.abs(d-live):null;
-    if(dT!=null) sumT+=dT; if(dD!=null) sumD+=dD;
-    tb.insertAdjacentHTML("beforeend",
-      `<tr><td class="rank">${live??"–"}</td><td>${team}</td><td>${live??"–"}</td>
-       <td>${t??"–"}</td><td>${chip(dT)}</td><td>${d??"–"}</td><td>${chip(dD)}</td></tr>`);
-  });
-  const can = liveRows.length===teams.length;
-  document.getElementById('sumT').textContent = can?sumT:"–";
-  document.getElementById('sumD').textContent = can?sumD:"–";
-  document.getElementById('kpiT').textContent = can?sumT:"–";
-  document.getElementById('kpiD').textContent = can?sumD:"–";
-  document.getElementById('lead').textContent = can ? (sumT<sumD?"Thomas führt":sumD<sumT?"Dave führt":"Gleichstand") : "Live nötig";
-}
-
-document.getElementById('reload').onclick = load;
-document.getElementById('season').onchange = load;
-load();
-</script>
-</body>
-</html>
+  const season = do
