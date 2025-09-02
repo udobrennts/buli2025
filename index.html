@@ -136,14 +136,13 @@ function msg(text, cls="muted") {
 function urlsFor(league, season) {
   const seasons = [];
   if (season !== undefined) seasons.push(season);
-  seasons.push("2025","2024","");            // Kaskade: Auswahl → 2025 → 2024 → aktuell
+  seasons.push("2025","2024","");   // Auswahl → 2025 → 2024 → (aktuell)
   const uniq = [...new Set(seasons)];
 
   const bases = [
     // 1) Dein Worker zuerst (CORS sicher)
     (s) => `${WORKER}/getbltable/${league}${s ? "/" + s : ""}`,
-
-    // 2) Direkte Quellen (nur falls Worker nicht erreichbar ist)
+    // 2) Direkte Quellen nur als Fallbacks
     (s) => `https://api.openligadb.de/getbltable/${league}${s ? "/" + s : ""}`,
     (s) => `https://www.openligadb.de/api/getbltable/${league}${s ? "/" + s : ""}`,
   ];
@@ -154,7 +153,7 @@ function urlsFor(league, season) {
       const direct = make(s);
       urls.push(direct);
 
-      // Zusatz-Fallbacks nur für die DIREKT-Quellen (Worker braucht das nicht)
+      // Zusätzliche Fallback-Proxys nur für die direkten Quellen (Worker braucht das nicht)
       if (!direct.startsWith(WORKER)) {
         const enc = encodeURIComponent(direct);
         urls.push(`https://api.allorigins.win/raw?url=${enc}`);
