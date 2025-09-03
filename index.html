@@ -177,16 +177,17 @@ function lev(a,b){
 }
 
 function urlsFor(league, season){
-  // Versuche: Auswahl → 2025 → 2024 → (aktuell/leer)
+  // Reihenfolge: Auswahl → 2025 → 2024 → (aktuell/leer)
   const seasons = [season, "2025", "2024", ""];
   const uniq = [...new Set(seasons)];
-  const t = Date.now(); // Cache-Buster
+  const t = Date.now(); // Cache-Buster gegen alte Fehlantworten
   const urls = [];
   for (const s of uniq) {
     urls.push(`${WORKER}/getbltable/${league}${s ? "/" + s : ""}?t=${t}`);
   }
   return urls;
 }
+
 
 
 // 7) Daten holen (mit Fallback über Seasons)
@@ -199,19 +200,16 @@ async function fetchWithFallback(urls){
       const ct  = res.headers.get("content-type") || "";
       const txt = await res.text();
 
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status} ${ct} :: ${txt.slice(0,200)}`);
-      }
+      if (!res.ok) throw new Error(`HTTP ${res.status} ${ct} :: ${txt.slice(0,200)}`);
+
       let data;
       try { data = JSON.parse(txt); }
       catch { throw new Error(`Kein JSON (${ct}): ${txt.slice(0,200)}`); }
 
-      if (!Array.isArray(data)) {
-        throw new Error(`Unerwartetes Format (kein Array): ${Object.keys(data||{}).join(",").slice(0,40)}`);
-      }
+      if (!Array.isArray(data)) throw new Error(`Unerwartetes Format (kein Array)`);
 
       debug(`[OK  ] ${u} -> ${data.length}`);
-      return data;
+      return data; // [{ teamName, shortName, teamIconUrl, ... }]
     }catch(e){
       debug(`[FAIL] ${u}\n${e?.message || e}`);
       last = e;
@@ -219,6 +217,7 @@ async function fetchWithFallback(urls){
   }
   throw last || new Error("Keine Quelle lieferte Daten.");
 }
+
 
 
 // 8) Scoring vorbereiten (Indexe bauen)
@@ -320,8 +319,7 @@ function render(result){
 async function load(){
   const season = document.getElementById("season").value;
   msg("Lade Live-Tabelle …");
-  // Debug NICHT leeren, sondern neuen Abschnitt starten:
-  debug("— Reload — " + new Date().toLocaleString());
+  debug("— Reload — " + new Date().toLocaleString()); // NICHT leeren
 
   try{
     const league = "bl1";
@@ -338,6 +336,7 @@ async function load(){
     debug("Finaler Fehler: " + (e?.message || e));
   }
 }
+
 
 
 document.getElementById("reload").onclick = load;
