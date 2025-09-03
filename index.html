@@ -94,10 +94,12 @@
       <div><div class="kpiLabel">Führend</div><div class="kpiValue" id="leader">–</div></div>
     </div>
 
-    <details>
-      <summary>Debug</summary>
-      <div id="debug"></div>
-    </details>
+    <!-- vorher: <details> ... -->
+<details id="dbgWrap" open>
+  <summary>Debug</summary>
+  <div id="debug" style="font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space:pre-wrap;"></div>
+</details>
+
   </main>
 
   <footer>
@@ -122,7 +124,34 @@ const picksThomas = {"FC Bayern München":1,"Borussia Dortmund":2,"RB Leipzig":3
 const picksDave   = {"FC Bayern München":1,"Eintracht Frankfurt":2,"Borussia Dortmund":3,"VfB Stuttgart":4,"Bayer 04 Leverkusen":5,"RB Leipzig":6,"1. FC Köln":7,"1. FSV Mainz 05":8,"SC Freiburg":9,"Hamburger SV":10,"TSG 1899 Hoffenheim":11,"Borussia Mönchengladbach":12,"FC Augsburg":13,"1. FC Heidenheim 1846":14,"VfL Wolfsburg":15,"FC St. Pauli":16,"1. FC Union Berlin":17,"SV Werder Bremen":18};
 
 // 4) Helper (UI)
-function debug(line){ const box = document.getElementById("debug"); const el = document.createElement("pre"); el.textContent = line; box.appendChild(el); }
+function debug(line){
+  try {
+    console.log(line); // immer auch in die Browser-Konsole
+    let box = document.getElementById("debug");
+    // Falls #debug fehlt (z. B. DOM noch nicht fertig oder kaputt): dynamisch anlegen
+    if (!box) {
+      const wrap = document.getElementById("dbgWrap") || document.body;
+      box = document.createElement("div");
+      box.id = "debug";
+      box.style.whiteSpace = "pre-wrap";
+      box.style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+      wrap.appendChild(box);
+    }
+    const el = document.createElement("div");
+    el.textContent = String(line);
+    box.appendChild(el);
+  } catch (e) {
+    // im Worst Case wenigstens Konsole
+    console.error("debug() failed:", e);
+  }
+}
+
+// Globale Fehler sichtbar machen
+window.addEventListener("error",  (e) => debug("[JS ERROR] " + e.message));
+window.addEventListener("unhandledrejection", (e) => {
+  const r = e.reason;
+  debug("[PROMISE REJECTION] " + (r?.message || r));
+});
 function msg(text, cls="muted"){ const el = document.getElementById("msg"); el.className = "msg " + cls; el.textContent = text; }
 function chip(value){ if (value==null) return "<span class='chip bad'>–</span>"; const cls = value===0 ? "chip good exact" : "chip " + (value<=2 ? "good" : "bad"); return `<span class="${cls}">${value}</span>`; }
 
@@ -319,7 +348,7 @@ function render(result){
 async function load(){
   const season = document.getElementById("season").value;
   msg("Lade Live-Tabelle …");
-  debug("— Reload — " + new Date().toLocaleString()); // NICHT leeren
+debug("— Reload — " + new Date().toLocaleString() + " | Season=" + document.getElementById("season").value);
 
   try{
     const league = "bl1";
