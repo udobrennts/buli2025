@@ -84,11 +84,21 @@
 </main>
 
 <script>
-// 👉 Deine Worker-URL hier:
+// 👉 1) DEINE Cloudflare-Worker-URL (ohne Slash am Ende):
 const WORKER = "https://udobrennts.davidwstrassbuger.workers.dev";
 
+// 👉 2) Direkte OpenLigaDB-Basen (Fallbacks)
+const ODB_API  = "https://api.openligadb.de";
+const ODB_WEB  = "https://www.openligadb.de/api";
+
 // Teams + Tipps
-const teamsOfficial = ["FC Bayern München","Borussia Dortmund","RB Leipzig","VfB Stuttgart","Bayer 04 Leverkusen","Eintracht Frankfurt","1. FSV Mainz 05","1. FC Köln","FC Augsburg","SV Werder Bremen","SC Freiburg","Borussia Mönchengladbach","TSG 1899 Hoffenheim","VfL Wolfsburg","Hamburger SV","1. FC Union Berlin","FC St. Pauli","1. FC Heidenheim 1846"];
+const teamsOfficial = [
+  "FC Bayern München","Borussia Dortmund","RB Leipzig","VfB Stuttgart",
+  "Bayer 04 Leverkusen","Eintracht Frankfurt","1. FSV Mainz 05","1. FC Köln",
+  "FC Augsburg","SV Werder Bremen","SC Freiburg","Borussia Mönchengladbach",
+  "TSG 1899 Hoffenheim","VfL Wolfsburg","Hamburger SV","1. FC Union Berlin",
+  "FC St. Pauli","1. FC Heidenheim 1846"
+];
 const picksThomas = {"FC Bayern München":1,"Borussia Dortmund":2,"RB Leipzig":3,"VfB Stuttgart":4,"Bayer 04 Leverkusen":5,"Eintracht Frankfurt":6,"1. FSV Mainz 05":7,"1. FC Köln":8,"FC Augsburg":9,"SV Werder Bremen":10,"SC Freiburg":11,"Borussia Mönchengladbach":12,"TSG 1899 Hoffenheim":13,"VfL Wolfsburg":14,"Hamburger SV":15,"1. FC Union Berlin":16,"FC St. Pauli":17,"1. FC Heidenheim 1846":18};
 const picksDave   = {"FC Bayern München":1,"Eintracht Frankfurt":2,"Borussia Dortmund":3,"VfB Stuttgart":4,"Bayer 04 Leverkusen":5,"RB Leipzig":6,"1. FC Köln":7,"1. FSV Mainz 05":8,"SC Freiburg":9,"Hamburger SV":10,"TSG 1899 Hoffenheim":11,"Borussia Mönchengladbach":12,"FC Augsburg":13,"1. FC Heidenheim 1846":14,"VfL Wolfsburg":15,"FC St. Pauli":16,"1. FC Union Berlin":17,"SV Werder Bremen":18};
 
@@ -106,53 +116,134 @@ window.addEventListener("unhandledrejection", e => debug("[PROMISE REJECTION] " 
 // Kleine Helfer
 function chip(v){ if(v==null) return "<span class='chip bad'>–</span>"; return `<span class="chip ${v===0?"good":"bad"}">${v}</span>`; }
 function deUmlaut(s){return s.replace(/ä/g,"ae").replace(/ö/g,"oe").replace(/ü/g,"ue").replace(/ß/g,"ss").replace(/Ä/g,"Ae").replace(/Ö/g,"Oe").replace(/Ü/g,"Ue");}
-function norm(s){return deUmlaut(String(s||"")).toLowerCase().replace(/[^a-z0-9]+/g," ").trim();}
+function norm(s){
+  return deUmlaut(String(s||""))
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g," ")
+    .trim()
+    .replace(/\s+/g," ");
+}
 function lev(a,b){a=a||"";b=b||"";const m=a.length,n=b.length,dp=Array.from({length:m+1},()=>Array(n+1).fill(0));for(let i=0;i<=m;i++)dp[i][0]=i;for(let j=0;j<=n;j++)dp[0][j]=j;for(let i=1;i<=m;i++){for(let j=1;j<=n;j++){const cost=a[i-1]===b[j-1]?0:1;dp[i][j]=Math.min(dp[i-1][j]+1,dp[i][j-1]+1,dp[i-1][j-1]+cost);}}return dp[m][n];}
 
-// Synonyme
-const synonymList = {"borussia moenchengladbach":["gladbach","bmg"],"rasenballsport leipzig":["rb leipzig","leipzig"],"bayer 04 leverkusen":["leverkusen","b04"],"eintracht frankfurt":["frankfurt","sge"],"1 fc koeln":["koeln","fc koeln","koln"],"1 fsv mainz 05":["mainz","fsv mainz"],"sv werder bremen":["werder","bremen"],"1 fc union berlin":["union","union berlin"],"fc st pauli":["st pauli","st. pauli"],"1 fc heidenheim 1846":["heidenheim"],"hamburger sv":["hsv","hamburg"],"borussia dortmund":["dortmund","bvb"],"fc bayern muenchen":["bayern","fcb"]};
+// Synonyme (nah am Original) – inkl. Fix: „1899 Hoffenheim“
+const synonymList = {
+  "borussia moenchengladbach": ["gladbach","bmg"],
+  "rasenballsport leipzig": ["rb leipzig","leipzig"],
+  "bayer 04 leverkusen": ["leverkusen","b04","bayer leverkusen"],
+  "eintracht frankfurt": ["frankfurt","sge"],
+  "1 fc koeln": ["koeln","fc koeln","koln","1. fc koln"],
+  "1 fsv mainz 05": ["mainz","fsv mainz","mainz 05"],
+  "sv werder bremen": ["werder","bremen"],
+  "1 fc union berlin": ["union","union berlin"],
+  "fc st pauli": ["st pauli","st. pauli","fc st pauli"],
+  "1 fc heidenheim 1846": ["heidenheim","heidenheim 1846"],
+  "hamburger sv": ["hsv","hamburg"],
+  "borussia dortmund": ["dortmund","bvb"],
+  "fc bayern muenchen": ["bayern","fcb","bayern muenchen"],
+  "tsg 1899 hoffenheim": ["tsg hoffenheim","hoffenheim","1899 hoffenheim"]   <!-- FIX HIER -->
+};
 
-// URL-Kandidaten
+// URL-Kandidaten (Worker → direkt → Proxys)
 function urlsFor(league, season){
   const seasons=[season,"2025","2024",""];
   const uniq=[...new Set(seasons)];
-  const t=Date.now();
-  return uniq.map(s=>`${WORKER}/getbltable/${league}${s?"/"+s:""}?t=${t}`);
+  const t=Date.now(); // Cache-Buster
+  const urls=[];
+  for(const s of uniq){
+    const path = `/getbltable/${league}${s?"/"+s:""}`;
+    // 1) Worker
+    urls.push(`${WORKER}${path}?t=${t}`);
+    // 2) Direkt
+    urls.push(`${ODB_API}${path}?t=${t}`);
+    urls.push(`${ODB_WEB}${path}?t=${t}`);
+    // 3) Proxys (für direkt, nicht nötig für Worker)
+    const d1 = `${ODB_API}${path}`;
+    const d2 = `${ODB_WEB}${path}`;
+    const enc1 = encodeURIComponent(d1), enc2 = encodeURIComponent(d2);
+    urls.push(`https://api.allorigins.win/raw?url=${enc1}`);
+    urls.push(`https://api.allorigins.win/raw?url=${enc2}`);
+    urls.push(`https://api.allorigins.win/get?url=${enc1}`);
+    urls.push(`https://api.allorigins.win/get?url=${enc2}`);
+    urls.push(`https://cors.isomorphic-git.org/${d1}`);
+    urls.push(`https://cors.isomorphic-git.org/${d2}`);
+    urls.push(`https://r.jina.ai/${d1}`);
+    urls.push(`https://r.jina.ai/${d2}`);
+  }
+  debug("Kandidaten: "+urls.length);
+  return urls;
 }
 
-// Daten holen
+// Daten holen (mit robustem JSON-Parse)
 async function fetchWithFallback(urls){
   let last=null;
   for(const u of urls){
     try{
       debug("[TRY ] "+u);
       const res=await fetch(u,{cache:"no-store"});
+      const ct = res.headers.get("content-type")||"";
       const txt=await res.text();
-      if(!res.ok) throw new Error("HTTP "+res.status+" :: "+txt.slice(0,100));
-      const data=JSON.parse(txt);
-      if(!Array.isArray(data)) throw new Error("kein Array");
+      if(!res.ok) throw new Error(`HTTP ${res.status} ${ct} :: ${txt.slice(0,200)}`);
+
+      let data;
+      // AllOrigins /get liefert { contents: "..." }
+      if (u.includes("allorigins.win/get?")) {
+        const outer = JSON.parse(txt);
+        data = JSON.parse(outer.contents||outer.contentsText||outer.data||"[]");
+      } else {
+        data = JSON.parse(txt);
+      }
+
+      if(!Array.isArray(data)) throw new Error("Unerwartetes Format (kein Array)");
       debug("[OK  ] "+u+" -> "+data.length);
-      return data;
-    }catch(e){debug("[FAIL] "+u+" :: "+(e?.message||e)); last=e;}
+      return data; // [{teamName, shortName, teamIconUrl, ...}]
+    }catch(e){ debug("[FAIL] "+u+" :: "+(e?.message||e)); last=e; }
   }
-  throw last||new Error("keine Quelle");
+  throw last||new Error("Keine Quelle lieferte Daten.");
 }
 
 // Indexe + Matching
-function buildIndexes(live){return {exact:new Map(live.map((r,i)=>[r.teamName,i])),byNorm:new Map(live.map((r,i)=>[norm(r.teamName),i]))};}
+function buildIndexes(live){
+  return {
+    exact:new Map(live.map((r,i)=>[r.teamName,i])),
+    byNorm:new Map(live.map((r,i)=>[norm(r.teamName),i]))
+  };
+}
 function compute(live,idx){
   let sumT=0,sumD=0;
   const rows=teamsOfficial.map(team=>{
-    let i=idx.exact.get(team);
-    if(i==null){const n=norm(team);if(idx.byNorm.has(n)) i=idx.byNorm.get(n);}
-    if(i==null){const n=norm(team);if(synonymList[n]){for(const alt of synonymList[n]){const cand=norm(alt);if(idx.byNorm.has(cand)) i=idx.byNorm.get(cand);}}}
-    if(i==null){let best=-1,dist=99;const n=norm(team);for(let j=0;j<live.length;j++){const d=lev(n,norm(live[j].teamName));if(d<dist){dist=d;best=j;}}if(dist<=3) i=best;}
-    const livePos=i!=null&&i>=0?i+1:null;
-    const th=picksThomas[team]??null; const dv=picksDave[team]??null;
-    const dT=(livePos&&th)?Math.abs(th-livePos):null;
-    const dD=(livePos&&dv)?Math.abs(dv-livePos):null;
-    if(dT!=null) sumT+=dT; if(dD!=null) sumD+=dD;
-    return {team,live:livePos,thomas:th,dave:dv,diff_thomas:dT,diff_dave:dD,logo:i!=null?live[i].teamIconUrl:""};
+    let i = idx.exact.get(team);
+    if(i==null){const n=norm(team); if(idx.byNorm.has(n)) i=idx.byNorm.get(n);}
+    if(i==null){
+      const n=norm(team);
+      if(synonymList[n]){
+        for(const alt of synonymList[n]){
+          const cand=norm(alt);
+          if(idx.byNorm.has(cand)){ i=idx.byNorm.get(cand); break; }
+        }
+      }
+    }
+    if(i==null){
+      // Leichtes Fuzzy (konservativ)
+      let best=-1,dist=99; const n=norm(team);
+      for(let j=0;j<live.length;j++){
+        const d=lev(n,norm(live[j].teamName));
+        if(d<dist){dist=d;best=j;}
+      }
+      if(dist<=3) i=best;
+    }
+
+    const livePos=(i!=null && i>=0) ? (i+1) : null;
+
+    const th = (team in picksThomas) ? picksThomas[team] : null;
+    const dv = (team in picksDave)   ? picksDave[team]   : null;
+
+    const dT = (livePos!==null && th!==null) ? Math.abs(th - livePos) : null;
+    const dD = (livePos!==null && dv!==null) ? Math.abs(dv - livePos) : null;
+
+    if(dT!==null) sumT+=dT;
+    if(dD!==null) sumD+=dD;
+
+    return {team, live:livePos, thomas:th, dave:dv, diff_thomas:dT, diff_dave:dD, logo:i!=null? (live[i].teamIconUrl||"") : ""};
   });
   return {rows,sumT,sumD};
 }
@@ -162,6 +253,7 @@ function render({rows,sumT,sumD}){
   const tbody=document.querySelector("#table tbody");
   tbody.innerHTML="";
   const sorter=document.getElementById("sorter").value;
+
   rows.slice().sort((a,b)=>{
     if(sorter==="name") return a.team.localeCompare(b.team);
     return (a[sorter]??99)-(b[sorter]??99);
@@ -171,11 +263,13 @@ function render({rows,sumT,sumD}){
        <td>${r.live??"–"}</td><td>${r.thomas??"–"}</td><td>${chip(r.diff_thomas)}</td>
        <td>${r.dave??"–"}</td><td>${chip(r.diff_dave)}</td></tr>`);
   });
-  document.getElementById("sum_thomas").textContent=sumT;
-  document.getElementById("sum_dave").textContent=sumD;
-  document.getElementById("kpi_thomas").textContent=sumT;
-  document.getElementById("kpi_dave").textContent=sumD;
-  document.getElementById("leader").textContent=(sumT<sumD?"Thomas führt":sumD<sumT?"Dave führt":"Gleichstand");
+
+  // Summen immer anzeigen
+  document.getElementById("sum_thomas").textContent = sumT;
+  document.getElementById("sum_dave").textContent   = sumD;
+  document.getElementById("kpi_thomas").textContent = sumT;
+  document.getElementById("kpi_dave").textContent   = sumD;
+  document.getElementById("leader").textContent     = (sumT<sumD?"Thomas führt":sumD<sumT?"Dave führt":"Gleichstand");
 }
 
 // Load
@@ -186,7 +280,7 @@ async function load(){
     const live=await fetchWithFallback(urlsFor("bl1",season));
     const idx=buildIndexes(live);
     render(compute(live,idx));
-  }catch(e){debug("Finaler Fehler: "+(e?.message||e));}
+  }catch(e){ debug("Finaler Fehler: "+(e?.message||e)); }
 }
 document.getElementById("reload").onclick=load;
 document.getElementById("season").onchange=load;
@@ -195,3 +289,4 @@ load();
 </script>
 </body>
 </html>
+
