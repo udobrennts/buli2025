@@ -176,32 +176,50 @@ function lev(a,b){
   return dp[m][n];
 }
 
-// 6) Worker-first: URL-Kandidaten
 function urlsFor(league, season){
-  const seasons = [season, "2025", "2024"].filter(v=>v!==undefined);
+  // Versuche: Auswahl → 2025 → 2024 → (aktuell/leer)
+  const seasons = [season, "2025", "2024", ""];
   const uniq = [...new Set(seasons)];
+  const t = Date.now(); // Cache-Buster
   const urls = [];
-  for (const s of uniq) urls.push(`${WORKER}/getbltable/${league}${s?"/"+s:""}`);
+  for (const s of uniq) {
+    urls.push(`${WORKER}/getbltable/${league}${s ? "/" + s : ""}?t=${t}`);
+  }
   return urls;
 }
 
+
 // 7) Daten holen (mit Fallback über Seasons)
 async function fetchWithFallback(urls){
-  let last=null;
+  let last = null;
   for (const u of urls){
     try{
       debug(`[TRY ] ${u}`);
-      const res = await fetch(u, { cache:"no-store" });
+      const res = await fetch(u, { cache: "no-store" });
+      const ct  = res.headers.get("content-type") || "";
       const txt = await res.text();
-      if (!res.ok) throw new Error(`HTTP ${res.status}\n${txt.slice(0,400)}`);
-      const data = JSON.parse(txt);
-      if (!Array.isArray(data)) throw new Error("Unerwartetes Format (kein Array)");
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status} ${ct} :: ${txt.slice(0,200)}`);
+      }
+      let data;
+      try { data = JSON.parse(txt); }
+      catch { throw new Error(`Kein JSON (${ct}): ${txt.slice(0,200)}`); }
+
+      if (!Array.isArray(data)) {
+        throw new Error(`Unerwartetes Format (kein Array): ${Object.keys(data||{}).join(",").slice(0,40)}`);
+      }
+
       debug(`[OK  ] ${u} -> ${data.length}`);
-      return data; // [{teamName, shortName, teamIconUrl, ...}]
-    }catch(e){ debug(`[FAIL] ${u}\n${e?.message||e}`); last=e; }
+      return data;
+    }catch(e){
+      debug(`[FAIL] ${u}\n${e?.message || e}`);
+      last = e;
+    }
   }
   throw last || new Error("Keine Quelle lieferte Daten.");
 }
+
 
 // 8) Scoring vorbereiten (Indexe bauen)
 function buildIndexes(live){
@@ -302,23 +320,25 @@ function render(result){
 async function load(){
   const season = document.getElementById("season").value;
   msg("Lade Live-Tabelle …");
-  document.getElementById("debug").innerHTML = "";
+  // Debug NICHT leeren, sondern neuen Abschnitt starten:
+  debug("— Reload — " + new Date().toLocaleString());
+
   try{
     const league = "bl1";
     const urls = urlsFor(league, season);
-    const live = await fetchWithFallback(urls);        // array mit {teamName, shortName, teamIconUrl, ...}
-    const idx = buildIndexes(live);
+    const live = await fetchWithFallback(urls);
+    const idx  = buildIndexes(live);
     const result = compute(live, idx);
     render(result);
-    msg("Live-Daten geladen.");
+    msg(`Live-Daten geladen (${live.length} Teams).`);
   }catch(e){
     msg("Konnte Live-Daten nicht laden – siehe Debug.", "muted");
-    // Fallback-Render, damit UI nicht leer ist
     const rows = teamsOfficial.map(t=>({team:t, live:null, thomas:picksThomas[t]??null, dave:picksDave[t]??null, diff_thomas:null, diff_dave:null, logo:""}));
     render({ rows, sumT:0, sumD:0, canScore:false });
     debug("Finaler Fehler: " + (e?.message || e));
   }
 }
+
 
 document.getElementById("reload").onclick = load;
 document.getElementById("season").onchange = load;
