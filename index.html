@@ -3,374 +3,194 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Bundesliga Tippspiel – Online Live-Scorer (Worker-first, robustes Matching)</title>
-<meta name="description" content="Live-Scoring für Bundesliga-Tipps mit eigenem Cloudflare-Worker, Debug-Konsole, Saison-Auswahl und robustem Namens-Matching.">
+<title>Bundesliga Tippspiel – Online Live-Scorer</title>
 <style>
-  :root { --bg:#0b0f14; --card:#121826; --muted:#94a3b8; --ok:#16a34a; --bad:#ef4444; --accent:#38bdf8; }
-  * { box-sizing:border-box; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
-  body { margin:0; background:var(--bg); color:#e5e7eb; }
-  header { padding:18px 20px; border-bottom:1px solid #1f2937; display:flex; flex-wrap:wrap; gap:12px; align-items:baseline;}
+  body { margin:0; background:#0b0f14; color:#e5e7eb; font-family:system-ui, sans-serif; }
+  header { padding:18px 20px; border-bottom:1px solid #1f2937; }
   h1 { margin:0; font-size:1.2rem; }
-  .muted { color:var(--muted); }
   main { padding:18px; max-width:1100px; margin:0 auto; }
-  .controls { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:12px; }
+  .controls { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
   select, button { background:#0f172a; color:#e5e7eb; border:1px solid #1f2937; padding:8px 10px; border-radius:10px; }
   button { cursor:pointer; }
-  .board { background:var(--card); border:1px solid #1f2937; border-radius:14px; padding:14px; box-shadow:0 6px 24px rgba(0,0,0,.25); }
+  .board { background:#121826; border:1px solid #1f2937; border-radius:14px; padding:14px; }
   table { width:100%; border-collapse:collapse; font-size:14px; }
-  thead th { text-align:left; color:#cbd5e1; font-weight:600; border-bottom:1px solid #1f2937; padding:10px 8px; white-space:nowrap; position:sticky; top:0; background:var(--card); z-index:2; }
-  tbody td { padding:8px; border-bottom:1px dashed #243244; vertical-align:middle; }
-  tbody tr:hover { background: rgba(255,255,255,.03); }
-  .rank { width:36px; font-variant-numeric: tabular-nums; }
-  .club { display:flex; align-items:center; gap:10px; }
-  .club img { width:22px; height:22px; border-radius:50%; background:#111827; }
-  .chip { display:inline-block; padding:2px 8px; border-radius:999px; font-variant-numeric:tabular-nums; }
-  .good { background:rgba(22,163,74,.15); color:var(--ok); }
-  .bad  { background:rgba(239,68,68,.15); color:var(--bad); }
-  .exact { border:1px solid var(--ok); }
-  .sum { font-weight:700; }
-  .kpis { display:flex; gap:12px; margin:12px 0 18px; }
-  .kpis > div { background:var(--card); border:1px solid #1f2937; border-radius:12px; padding:10px 12px; }
-  .kpiLabel { color:var(--muted); font-size:.85rem; }
-  .kpiValue { font-size:1.05rem; color:#fff; }
-  .msg { margin:6px 0 12px; }
-  footer { color:var(--muted); padding:8px 20px 20px; font-size:.85rem; }
-  details { margin-top: 12px; }
-  pre { background:#0f172a; border:1px solid #1f2937; border-radius:10px; padding:10px; white-space:pre-wrap; overflow:auto; }
+  thead th { text-align:left; color:#cbd5e1; border-bottom:1px solid #1f2937; padding:8px; }
+  tbody td { padding:8px; border-bottom:1px dashed #243244; }
+  tbody tr:hover { background:rgba(255,255,255,.03); }
+  .rank { width:36px; }
+  .chip { padding:2px 8px; border-radius:999px; }
+  .good { background:rgba(22,163,74,.15); color:#16a34a; }
+  .bad  { background:rgba(239,68,68,.15); color:#ef4444; }
+  .kpis { display:flex; gap:12px; margin:12px 0; }
+  .kpis > div { background:#121826; border:1px solid #1f2937; border-radius:12px; padding:10px 12px; }
+  .kpiLabel { color:#94a3b8; font-size:.85rem; }
+  .kpiValue { font-size:1.05rem; }
+  details { margin-top:14px; }
+  #debug { font-family:ui-monospace, monospace; white-space:pre-wrap; }
 </style>
 </head>
 <body>
-  <header>
-    <h1>Bundesliga Tippspiel – Online Live-Scorer</h1>
-    <div class="muted">Regel: |Tipp − Live-Platz|, Summe = Minuspunkte (weniger ist besser). Einsatz: 1× Polvo-Essen.</div>
-  </header>
-  <main>
-    <div class="controls">
-      <label>Saison:
-        <select id="season">
-          <option value="2025" selected>2025</option>
-          <option value="2024">2024</option>
-        </select>
-      </label>
-      <label>Sortieren:
-        <select id="sorter">
-          <option value="live">Live-Platz</option>
-          <option value="thomas">Thomas’ Tipp</option>
-          <option value="dave">Daves Tipp</option>
-          <option value="diff_thomas">Δ Thomas</option>
-          <option value="diff_dave">Δ Dave</option>
-          <option value="name">Teamname</option>
-        </select>
-      </label>
-      <button id="reload">Neu laden</button>
-    </div>
+<header>
+  <h1>Bundesliga Tippspiel – Online Live-Scorer</h1>
+  <div>Regel: |Tipp − Live-Platz|, Summe = Minuspunkte. Einsatz: 1× Polvo-Essen.</div>
+</header>
+<main>
+  <div class="controls">
+    <label>Saison:
+      <select id="season">
+        <option value="2025" selected>2025</option>
+        <option value="2024">2024</option>
+      </select>
+    </label>
+    <label>Sortieren:
+      <select id="sorter">
+        <option value="live">Live-Platz</option>
+        <option value="thomas">Thomas</option>
+        <option value="dave">Dave</option>
+        <option value="diff_thomas">Δ Thomas</option>
+        <option value="diff_dave">Δ Dave</option>
+        <option value="name">Teamname</option>
+      </select>
+    </label>
+    <button id="reload">Neu laden</button>
+  </div>
 
-    <div id="msg" class="msg muted"></div>
+  <div class="board">
+    <table id="table">
+      <thead><tr>
+        <th>#</th><th>Team</th><th>Live</th>
+        <th>Thomas</th><th>Δ Thomas</th>
+        <th>Dave</th><th>Δ Dave</th>
+      </tr></thead>
+      <tbody></tbody>
+      <tfoot><tr>
+        <td></td><td>Summe</td><td></td>
+        <td id="sum_thomas"></td><td></td>
+        <td id="sum_dave"></td><td></td>
+      </tr></tfoot>
+    </table>
+  </div>
 
-    <div class="board">
-      <table id="table">
-        <thead><tr>
-          <th class="rank">#</th>
-          <th>Team</th>
-          <th>Live</th>
-          <th>Thomas</th>
-          <th>Δ Thomas</th>
-          <th>Dave</th>
-          <th>Δ Dave</th>
-        </tr></thead>
-        <tbody></tbody>
-        <tfoot><tr class="sum">
-          <td></td><td>Summe Minuspunkte</td>
-          <td></td>
-          <td id="sum_thomas"></td><td></td>
-          <td id="sum_dave"></td><td></td>
-        </tr></tfoot>
-      </table>
-    </div>
+  <div class="kpis">
+    <div><div class="kpiLabel">Thomas</div><div class="kpiValue" id="kpi_thomas">–</div></div>
+    <div><div class="kpiLabel">Dave</div><div class="kpiValue" id="kpi_dave">–</div></div>
+    <div><div class="kpiLabel">Führend</div><div class="kpiValue" id="leader">–</div></div>
+  </div>
 
-    <div class="kpis">
-      <div><div class="kpiLabel">Thomas</div><div class="kpiValue" id="kpi_thomas">–</div></div>
-      <div><div class="kpiLabel">Dave</div><div class="kpiValue" id="kpi_dave">–</div></div>
-      <div><div class="kpiLabel">Führend</div><div class="kpiValue" id="leader">–</div></div>
-    </div>
-
-    <!-- vorher: <details> ... -->
-<details id="dbgWrap" open>
-  <summary>Debug</summary>
-  <div id="debug" style="font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space:pre-wrap;"></div>
-</details>
-
-  </main>
-
-  <footer>
-    <div>Quelle: OpenLigaDB – über deinen Cloudflare-Worker (CORS-sicher). Bei Bedarf Saison wechseln und „Neu laden“.</div>
-  </footer>
+  <details open>
+    <summary>Debug</summary>
+    <div id="debug"></div>
+  </details>
+</main>
 
 <script>
-https://udobrennts.davidwstrassbuger.workers.dev/
+// 👉 Deine Worker-URL hier:
 const WORKER = "https://udobrennts.davidwstrassbuger.workers.dev";
 
-// 2) Offizielle Teams (Anzeige bleibt offiziell)
-const teamsOfficial = [
-  "FC Bayern München","Borussia Dortmund","RB Leipzig","VfB Stuttgart",
-  "Bayer 04 Leverkusen","Eintracht Frankfurt","1. FSV Mainz 05","1. FC Köln",
-  "FC Augsburg","SV Werder Bremen","SC Freiburg","Borussia Mönchengladbach",
-  "TSG 1899 Hoffenheim","VfL Wolfsburg","Hamburger SV","1. FC Union Berlin",
-  "FC St. Pauli","1. FC Heidenheim 1846"
-];
-
-// 3) Tipps (Thomas & Dave)
+// Teams + Tipps
+const teamsOfficial = ["FC Bayern München","Borussia Dortmund","RB Leipzig","VfB Stuttgart","Bayer 04 Leverkusen","Eintracht Frankfurt","1. FSV Mainz 05","1. FC Köln","FC Augsburg","SV Werder Bremen","SC Freiburg","Borussia Mönchengladbach","TSG 1899 Hoffenheim","VfL Wolfsburg","Hamburger SV","1. FC Union Berlin","FC St. Pauli","1. FC Heidenheim 1846"];
 const picksThomas = {"FC Bayern München":1,"Borussia Dortmund":2,"RB Leipzig":3,"VfB Stuttgart":4,"Bayer 04 Leverkusen":5,"Eintracht Frankfurt":6,"1. FSV Mainz 05":7,"1. FC Köln":8,"FC Augsburg":9,"SV Werder Bremen":10,"SC Freiburg":11,"Borussia Mönchengladbach":12,"TSG 1899 Hoffenheim":13,"VfL Wolfsburg":14,"Hamburger SV":15,"1. FC Union Berlin":16,"FC St. Pauli":17,"1. FC Heidenheim 1846":18};
 const picksDave   = {"FC Bayern München":1,"Eintracht Frankfurt":2,"Borussia Dortmund":3,"VfB Stuttgart":4,"Bayer 04 Leverkusen":5,"RB Leipzig":6,"1. FC Köln":7,"1. FSV Mainz 05":8,"SC Freiburg":9,"Hamburger SV":10,"TSG 1899 Hoffenheim":11,"Borussia Mönchengladbach":12,"FC Augsburg":13,"1. FC Heidenheim 1846":14,"VfL Wolfsburg":15,"FC St. Pauli":16,"1. FC Union Berlin":17,"SV Werder Bremen":18};
 
-// 4) Helper (UI)
+// Debug immer offen
 function debug(line){
-  try {
-    console.log(line); // immer auch in die Browser-Konsole
-    let box = document.getElementById("debug");
-    // Falls #debug fehlt (z. B. DOM noch nicht fertig oder kaputt): dynamisch anlegen
-    if (!box) {
-      const wrap = document.getElementById("dbgWrap") || document.body;
-      box = document.createElement("div");
-      box.id = "debug";
-      box.style.whiteSpace = "pre-wrap";
-      box.style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
-      wrap.appendChild(box);
-    }
-    const el = document.createElement("div");
-    el.textContent = String(line);
-    box.appendChild(el);
-  } catch (e) {
-    // im Worst Case wenigstens Konsole
-    console.error("debug() failed:", e);
-  }
+  console.log(line);
+  const box = document.getElementById("debug");
+  const el = document.createElement("div");
+  el.textContent = String(line);
+  box.appendChild(el);
 }
+window.addEventListener("error", e => debug("[JS ERROR] " + e.message));
+window.addEventListener("unhandledrejection", e => debug("[PROMISE REJECTION] " + (e.reason?.message||e.reason)));
 
-// Globale Fehler sichtbar machen
-window.addEventListener("error",  (e) => debug("[JS ERROR] " + e.message));
-window.addEventListener("unhandledrejection", (e) => {
-  const r = e.reason;
-  debug("[PROMISE REJECTION] " + (r?.message || r));
-});
-function msg(text, cls="muted"){ const el = document.getElementById("msg"); el.className = "msg " + cls; el.textContent = text; }
-function chip(value){ if (value==null) return "<span class='chip bad'>–</span>"; const cls = value===0 ? "chip good exact" : "chip " + (value<=2 ? "good" : "bad"); return `<span class="${cls}">${value}</span>`; }
+// Kleine Helfer
+function chip(v){ if(v==null) return "<span class='chip bad'>–</span>"; return `<span class="chip ${v===0?"good":"bad"}">${v}</span>`; }
+function deUmlaut(s){return s.replace(/ä/g,"ae").replace(/ö/g,"oe").replace(/ü/g,"ue").replace(/ß/g,"ss").replace(/Ä/g,"Ae").replace(/Ö/g,"Oe").replace(/Ü/g,"Ue");}
+function norm(s){return deUmlaut(String(s||"")).toLowerCase().replace(/[^a-z0-9]+/g," ").trim();}
+function lev(a,b){a=a||"";b=b||"";const m=a.length,n=b.length,dp=Array.from({length:m+1},()=>Array(n+1).fill(0));for(let i=0;i<=m;i++)dp[i][0]=i;for(let j=0;j<=n;j++)dp[0][j]=j;for(let i=1;i<=m;i++){for(let j=1;j<=n;j++){const cost=a[i-1]===b[j-1]?0:1;dp[i][j]=Math.min(dp[i-1][j]+1,dp[i][j-1]+1,dp[i-1][j-1]+cost);}}return dp[m][n];}
 
-// 5) Namens-Normalisierung & Synonyme (robustes Matching, optisch nah am Original)
-function deUmlaut(s){
-  return s
-    .replace(/ä/g,"ae").replace(/ö/g,"oe").replace(/ü/g,"ue").replace(/ß/g,"ss")
-    .replace(/Ä/g,"Ae").replace(/Ö/g,"Oe").replace(/Ü/g,"Ue");
-}
-function norm(s){
-  return deUmlaut(String(s || ""))
-    .toLowerCase()
-    .replace(/fc |tsg |vfl |vfb |1\.\s*fc|1\.\s*fsv|borussia|rasenballsport|sv |sc |bayer |rb /g, " ")
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim()
-    .replace(/\s+/g," ");
-}
-const synonymList = {
-  "borussia moenchengladbach": ["moenchengladbach","gladbach","bmg"],
-  "rasenballsport leipzig": ["rb leipzig","leipzig","rbleipzig","r b leipzig"],
-  "bayer 04 leverkusen": ["bayer leverkusen","leverkusen","b04"],
-  "eintracht frankfurt": ["frankfurt","sge"],
-  "1 fc koeln": ["koeln","fc koeln","1. fc koln","koln"],
-  "1 fsv mainz 05": ["mainz","mainz 05","fsv mainz"],
-  "sv werder bremen": ["werder","bremen"],
-  "1 fc union berlin": ["union","union berlin"],
-  "fc st pauli": ["st pauli","fc st pauli","st. pauli"],
-  "1 fc heidenheim 1846": ["heidenheim","heidenheim 1846"],
-  "hamburger sv": ["hsv","hamburg"],
-  "vfl wolfsburg": ["wolfsburg"],
-  "vfb stuttgart": ["stuttgart"],
-  "sc freiburg": ["freiburg"],
-  "fc augsburg": ["augsburg"],
-  "tsg 1899 hoffenheim": ["hoffenheim","tsg hoffenheim"],
-  "borussia dortmund": ["dortmund","bvb"],
-  "fc bayern muenchen": ["bayern","bayern muenchen","fcb"]
-};
-// Leichtes Fuzzy (Levenshtein)
-function lev(a,b){
-  a = a||""; b = b||"";
-  const m=a.length, n=b.length;
-  const dp = Array.from({length:m+1},(_,i)=>Array(n+1).fill(0));
-  for(let i=0;i<=m;i++) dp[i][0]=i;
-  for(let j=0;j<=n;j++) dp[0][j]=j;
-  for(let i=1;i<=m;i++){
-    for(let j=1;j<=n;j++){
-      const cost = a[i-1]===b[j-1]?0:1;
-      dp[i][j] = Math.min(dp[i-1][j]+1, dp[i][j-1]+1, dp[i-1][j-1]+cost);
-    }
-  }
-  return dp[m][n];
-}
+// Synonyme
+const synonymList = {"borussia moenchengladbach":["gladbach","bmg"],"rasenballsport leipzig":["rb leipzig","leipzig"],"bayer 04 leverkusen":["leverkusen","b04"],"eintracht frankfurt":["frankfurt","sge"],"1 fc koeln":["koeln","fc koeln","koln"],"1 fsv mainz 05":["mainz","fsv mainz"],"sv werder bremen":["werder","bremen"],"1 fc union berlin":["union","union berlin"],"fc st pauli":["st pauli","st. pauli"],"1 fc heidenheim 1846":["heidenheim"],"hamburger sv":["hsv","hamburg"],"borussia dortmund":["dortmund","bvb"],"fc bayern muenchen":["bayern","fcb"]};
 
+// URL-Kandidaten
 function urlsFor(league, season){
-  // Reihenfolge: Auswahl → 2025 → 2024 → (aktuell/leer)
-  const seasons = [season, "2025", "2024", ""];
-  const uniq = [...new Set(seasons)];
-  const t = Date.now(); // Cache-Buster gegen alte Fehlantworten
-  const urls = [];
-  for (const s of uniq) {
-    urls.push(`${WORKER}/getbltable/${league}${s ? "/" + s : ""}?t=${t}`);
-  }
-  return urls;
+  const seasons=[season,"2025","2024",""];
+  const uniq=[...new Set(seasons)];
+  const t=Date.now();
+  return uniq.map(s=>`${WORKER}/getbltable/${league}${s?"/"+s:""}?t=${t}`);
 }
 
-
-
-// 7) Daten holen (mit Fallback über Seasons)
+// Daten holen
 async function fetchWithFallback(urls){
-  let last = null;
-  for (const u of urls){
+  let last=null;
+  for(const u of urls){
     try{
-      debug(`[TRY ] ${u}`);
-      const res = await fetch(u, { cache: "no-store" });
-      const ct  = res.headers.get("content-type") || "";
-      const txt = await res.text();
-
-      if (!res.ok) throw new Error(`HTTP ${res.status} ${ct} :: ${txt.slice(0,200)}`);
-
-      let data;
-      try { data = JSON.parse(txt); }
-      catch { throw new Error(`Kein JSON (${ct}): ${txt.slice(0,200)}`); }
-
-      if (!Array.isArray(data)) throw new Error(`Unerwartetes Format (kein Array)`);
-
-      debug(`[OK  ] ${u} -> ${data.length}`);
-      return data; // [{ teamName, shortName, teamIconUrl, ... }]
-    }catch(e){
-      debug(`[FAIL] ${u}\n${e?.message || e}`);
-      last = e;
-    }
+      debug("[TRY ] "+u);
+      const res=await fetch(u,{cache:"no-store"});
+      const txt=await res.text();
+      if(!res.ok) throw new Error("HTTP "+res.status+" :: "+txt.slice(0,100));
+      const data=JSON.parse(txt);
+      if(!Array.isArray(data)) throw new Error("kein Array");
+      debug("[OK  ] "+u+" -> "+data.length);
+      return data;
+    }catch(e){debug("[FAIL] "+u+" :: "+(e?.message||e)); last=e;}
   }
-  throw last || new Error("Keine Quelle lieferte Daten.");
+  throw last||new Error("keine Quelle");
 }
 
-
-
-// 8) Scoring vorbereiten (Indexe bauen)
-function buildIndexes(live){
-  const exactByName = new Map(live.map((r,i)=>[r.teamName, i]));
-  const byShort     = new Map(live.map((r,i)=>[(r.shortName||"").toLowerCase(), i]));
-  const byNorm      = new Map(live.map((r,i)=>[norm(r.teamName), i]));
-  return { exactByName, byShort, byNorm };
-}
-
-// 9) Compute (robustes Matching, Summenberechnung)
-function compute(liveList, idx){
-  const { exactByName, byShort, byNorm } = idx;
-  let sumT=0, sumD=0;
-
-  function findLiveIndex(officialName){
-    if (exactByName.has(officialName)) return exactByName.get(officialName);
-    const offNorm = norm(officialName);
-    if (byNorm.has(offNorm)) return byNorm.get(offNorm);
-    if (synonymList[offNorm]){
-      for (const alt of synonymList[offNorm]){
-        const cand = norm(alt);
-        if (byNorm.has(cand)) return byNorm.get(cand);
-      }
-    }
-    // ShortName-Heuristik (z. B. "HSV", "BVB", "Köln")
-    const shortGuess = officialName.split(" ").pop().toLowerCase();
-    if (byShort.has(shortGuess)) return byShort.get(shortGuess);
-
-    // Leichtes Fuzzy (konservativ)
-    let bestIdx = -1, bestDist = Infinity;
-    for (let i=0;i<liveList.length;i++){
-      const n = norm(liveList[i].teamName);
-      const d = lev(offNorm, n);
-      if (d < bestDist){ bestDist = d; bestIdx = i; }
-    }
-    if (bestDist <= 3) return bestIdx;
-    return -1;
-  }
-
-  const rows = teamsOfficial.map(team=>{
-    const idxLive = findLiveIndex(team);
-    const livePos = idxLive>=0 ? (idxLive+1) : null;
-
-    const th = picksThomas[team] ?? null;
-    const dv = picksDave[team] ?? null;
-    const dT = (livePos!=null && th!=null) ? Math.abs(th - livePos) : null;
-    const dD = (livePos!=null && dv!=null) ? Math.abs(dv - livePos) : null;
-    if (dT!=null) sumT += dT;
-    if (dD!=null) sumD += dD;
-
-    const logo = idxLive>=0 ? (liveList[idxLive].teamIconUrl || "") : "";
-    return { team, live: livePos, thomas: th, dave: dv, diff_thomas: dT, diff_dave: dD, logo };
+// Indexe + Matching
+function buildIndexes(live){return {exact:new Map(live.map((r,i)=>[r.teamName,i])),byNorm:new Map(live.map((r,i)=>[norm(r.teamName),i]))};}
+function compute(live,idx){
+  let sumT=0,sumD=0;
+  const rows=teamsOfficial.map(team=>{
+    let i=idx.exact.get(team);
+    if(i==null){const n=norm(team);if(idx.byNorm.has(n)) i=idx.byNorm.get(n);}
+    if(i==null){const n=norm(team);if(synonymList[n]){for(const alt of synonymList[n]){const cand=norm(alt);if(idx.byNorm.has(cand)) i=idx.byNorm.get(cand);}}}
+    if(i==null){let best=-1,dist=99;const n=norm(team);for(let j=0;j<live.length;j++){const d=lev(n,norm(live[j].teamName));if(d<dist){dist=d;best=j;}}if(dist<=3) i=best;}
+    const livePos=i!=null&&i>=0?i+1:null;
+    const th=picksThomas[team]??null; const dv=picksDave[team]??null;
+    const dT=(livePos&&th)?Math.abs(th-livePos):null;
+    const dD=(livePos&&dv)?Math.abs(dv-livePos):null;
+    if(dT!=null) sumT+=dT; if(dD!=null) sumD+=dD;
+    return {team,live:livePos,thomas:th,dave:dv,diff_thomas:dT,diff_dave:dD,logo:i!=null?live[i].teamIconUrl:""};
   });
-
-  return { rows, sumT, sumD, canScore: rows.every(r => typeof r.live === "number") };
+  return {rows,sumT,sumD};
 }
 
-// 10) Render (Summen immer anzeigen; „vorläufig“, wenn Teams fehlen)
-function render(result){
-  const { rows, sumT, sumD } = result;
-  const sorter = document.getElementById("sorter").value;
-  const tbody = document.querySelector("#table tbody");
-  tbody.innerHTML = "";
-
-  const sorted = rows.slice().sort((a,b)=>{
-    if (sorter==="name") return a.team.localeCompare(b.team);
-    return (a[sorter] ?? 999) - (b[sorter] ?? 999);
+// Render
+function render({rows,sumT,sumD}){
+  const tbody=document.querySelector("#table tbody");
+  tbody.innerHTML="";
+  const sorter=document.getElementById("sorter").value;
+  rows.slice().sort((a,b)=>{
+    if(sorter==="name") return a.team.localeCompare(b.team);
+    return (a[sorter]??99)-(b[sorter]??99);
+  }).forEach(r=>{
+    tbody.insertAdjacentHTML("beforeend",
+      `<tr><td>${r.live??"–"}</td><td>${r.team}</td>
+       <td>${r.live??"–"}</td><td>${r.thomas??"–"}</td><td>${chip(r.diff_thomas)}</td>
+       <td>${r.dave??"–"}</td><td>${chip(r.diff_dave)}</td></tr>`);
   });
-
-  for (const r of sorted){
-    const rank = (typeof r.live === "number") ? r.live : "–";
-    tbody.insertAdjacentHTML("beforeend", `
-      <tr>
-        <td class="rank">${rank}</td>
-        <td class="club"><img src="${r.logo}" alt="" /> ${r.team}</td>
-        <td>${rank}</td>
-        <td>${r.thomas ?? "–"}</td>
-        <td>${chip(r.diff_thomas)}</td>
-        <td>${r.dave ?? "–"}</td>
-        <td>${chip(r.diff_dave)}</td>
-      </tr>
-    `);
-  }
-
-  // Summen immer zeigen
-  document.getElementById("sum_thomas").textContent = sumT;
-  document.getElementById("sum_dave").textContent   = sumD;
-  document.getElementById("kpi_thomas").textContent = sumT;
-  document.getElementById("kpi_dave").textContent   = sumD;
-
-  const missing = rows.filter(r => typeof r.live !== "number").map(r => r.team);
-  const leader = (sumT < sumD) ? "Thomas führt" : (sumD < sumT) ? "Dave führt" : "Gleichstand";
-  document.getElementById("leader").textContent = missing.length ? `${leader} (vorläufig)` : leader;
-  if (missing.length) debug("Kein Live-Match für: " + missing.join(", "));
+  document.getElementById("sum_thomas").textContent=sumT;
+  document.getElementById("sum_dave").textContent=sumD;
+  document.getElementById("kpi_thomas").textContent=sumT;
+  document.getElementById("kpi_dave").textContent=sumD;
+  document.getElementById("leader").textContent=(sumT<sumD?"Thomas führt":sumD<sumT?"Dave führt":"Gleichstand");
 }
 
-// 11) Haupt-Load
+// Load
 async function load(){
-  const season = document.getElementById("season").value;
-  msg("Lade Live-Tabelle …");
-debug("— Reload — " + new Date().toLocaleString() + " | Season=" + document.getElementById("season").value);
-
+  debug("— Reload "+new Date().toLocaleTimeString()+" —");
   try{
-    const league = "bl1";
-    const urls = urlsFor(league, season);
-    const live = await fetchWithFallback(urls);
-    const idx  = buildIndexes(live);
-    const result = compute(live, idx);
-    render(result);
-    msg(`Live-Daten geladen (${live.length} Teams).`);
-  }catch(e){
-    msg("Konnte Live-Daten nicht laden – siehe Debug.", "muted");
-    const rows = teamsOfficial.map(t=>({team:t, live:null, thomas:picksThomas[t]??null, dave:picksDave[t]??null, diff_thomas:null, diff_dave:null, logo:""}));
-    render({ rows, sumT:0, sumD:0, canScore:false });
-    debug("Finaler Fehler: " + (e?.message || e));
-  }
+    const season=document.getElementById("season").value;
+    const live=await fetchWithFallback(urlsFor("bl1",season));
+    const idx=buildIndexes(live);
+    render(compute(live,idx));
+  }catch(e){debug("Finaler Fehler: "+(e?.message||e));}
 }
-
-
-
-document.getElementById("reload").onclick = load;
-document.getElementById("season").onchange = load;
-document.getElementById("sorter").onchange = load;
+document.getElementById("reload").onclick=load;
+document.getElementById("season").onchange=load;
+document.getElementById("sorter").onchange=load;
 load();
 </script>
 </body>
